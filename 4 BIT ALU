@@ -1,0 +1,88 @@
+VHDL Code for 4-bit ALU :
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity alu_4bit is
+    Port (
+        A     : in  STD_LOGIC_VECTOR (3 downto 0);
+        B     : in  STD_LOGIC_VECTOR (3 downto 0);
+        Sel   : in  STD_LOGIC_VECTOR (2 downto 0); -- 3-bit select line
+        Result: out STD_LOGIC_VECTOR (3 downto 0)
+    );
+end alu_4bit;
+
+architecture Behavioral of alu_4bit is
+begin
+    process (A, B, Sel)
+    begin
+        case Sel is
+            when "000" => Result <= A + B;          -- ADD
+            when "001" => Result <= A - B;          -- SUBTRACT
+            when "010" => Result <= A and B;        -- AND
+            when "011" => Result <= A or B;         -- OR
+            when "100" => Result <= not A;          -- NOT (on A)
+            when "101" => Result <= A xor B;        -- XOR
+            when "110" => Result <= A;              -- ALU pass A
+            when others => Result <= (others => '0');
+        end case;
+    end process;
+end Behavioral;
+
+
+TestBench Code :
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity alu_4bit_tb is
+end alu_4bit_tb;
+
+architecture behavior of alu_4bit_tb is
+    -- Component Declaration
+    component alu_4bit
+        Port (
+            A     : in  STD_LOGIC_VECTOR (3 downto 0);
+            B     : in  STD_LOGIC_VECTOR (3 downto 0);
+            Sel   : in  STD_LOGIC_VECTOR (2 downto 0);
+            Result: out STD_LOGIC_VECTOR (3 downto 0)
+        );
+    end component;
+
+    -- Signals for testbench
+    signal A, B    : STD_LOGIC_VECTOR (3 downto 0) := "0000";
+    signal Sel     : STD_LOGIC_VECTOR (2 downto 0) := "000";
+    signal Result  : STD_LOGIC_VECTOR (3 downto 0);
+begin
+    -- Instantiate Unit Under Test (UUT)
+    uut: alu_4bit port map (
+        A => A,
+        B => B,
+        Sel => Sel,
+        Result => Result
+    );
+
+    -- Test process
+    stim_proc: process
+    begin
+        -- Test ADD
+        A <= "0101"; B <= "0011"; Sel <= "000"; wait for 20 ns;
+        -- Test SUB
+        A <= "0101"; B <= "0001"; Sel <= "001"; wait for 20 ns;
+        -- Test AND
+        A <= "1100"; B <= "1010"; Sel <= "010"; wait for 20 ns;
+        -- Test OR
+        A <= "1100"; B <= "1010"; Sel <= "011"; wait for 20 ns;
+        -- Test NOT
+        A <= "1100"; Sel <= "100"; wait for 20 ns;
+        -- Test XOR
+        A <= "1010"; B <= "0101"; Sel <= "101"; wait for 20 ns;
+        -- Test PASS
+        A <= "1111"; Sel <= "110"; wait for 20 ns;
+
+        wait; -- stop simulation
+    end process;
+end behavior;
+
