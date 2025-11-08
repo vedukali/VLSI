@@ -1,0 +1,103 @@
+VHDL Code for Universal shift register:file name: universal_shift
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity universal_shift is
+    Port (
+        clk   : in  STD_LOGIC;
+        reset : in  STD_LOGIC;
+        mode  : in  STD_LOGIC_VECTOR(1 downto 0); -- 00=SISO, 01=SIPO, 10=PISO, 11=PIPO
+        si    : in  STD_LOGIC;                    -- serial input
+        pi    : in  STD_LOGIC_VECTOR(3 downto 0); -- parallel input
+        q     : out STD_LOGIC_VECTOR(3 downto 0)  -- output register
+    );
+end universal_shift;
+
+architecture Behavioral of universal_shift is
+    signal reg : STD_LOGIC_VECTOR(3 downto 0);
+begin
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            reg <= (others => '0');
+        elsif rising_edge(clk) then
+            case mode is
+                when "00" => -- SISO (Shift Left Serial In Serial Out)
+                    reg <= reg(2 downto 0) & si;
+                when "01" => -- SIPO (Shift Left Serial In Parallel Out)
+                    reg <= reg(2 downto 0) & si;
+                when "10" => -- PISO (Parallel In Serial Out)
+                    reg <= pi;
+                when others => -- "11" PIPO (Parallel In Parallel Out)
+                    reg <= pi;
+            end case;
+        end if;
+    end process;
+    q <= reg;
+end Behavioral;
+
+
+Testbench code: file name : universal_shift_tb
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity universal_shift_tb is
+end universal_shift_tb;
+
+architecture behavior of universal_shift_tb is
+    signal clk   : STD_LOGIC := '0';
+    signal reset : STD_LOGIC := '0';
+    signal mode  : STD_LOGIC_VECTOR(1 downto 0) := "00";
+    signal si    : STD_LOGIC := '0';
+    signal pi    : STD_LOGIC_VECTOR(3 downto 0) := "0000";
+    signal q     : STD_LOGIC_VECTOR(3 downto 0);
+begin
+    uut: entity work.universal_shift
+        port map (
+            clk   => clk,
+            reset => reset,
+            mode  => mode,
+            si    => si,
+            pi    => pi,
+            q     => q
+        );
+
+    -- Clock process (10ns period)
+    clk_process: process
+    begin
+        while now < 200 ns loop
+            clk <= '0';
+            wait for 5 ns;
+            clk <= '1';
+            wait for 5 ns;
+        end loop;
+        wait;
+    end process;
+
+    stim_proc: process
+    begin
+        -- Reset
+        reset <= '1'; wait for 10 ns;
+        reset <= '0'; wait for 10 ns;
+
+        -- SISO
+        mode <= "00"; si <= '1'; wait for 20 ns;
+        si <= '0'; wait for 20 ns;
+
+        -- SIPO
+        mode <= "01"; si <= '1'; wait for 20 ns;
+        si <= '1'; wait for 20 ns;
+
+        -- PISO
+        mode <= "10"; pi <= "1010"; wait for 20 ns;
+
+        -- PIPO
+        mode <= "11"; pi <= "1100"; wait for 20 ns;
+
+        wait;
+    end process;
+end behavior;
+
+
