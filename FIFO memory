@@ -1,0 +1,158 @@
+VHDL code for FIFO Memory: file name:fifo
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity fifo is
+    generic (
+        DATA_WIDTH : integer := 8;  -- data width
+        DEPTH      : integer := 8   -- number of words
+    );
+    port (
+        clk   : in  STD_LOGIC;
+        reset : in  STD_LOGIC;
+        wr_en : in  STD_LOGIC;  -- write enable
+        rd_en : in  STD_LOGIC;  -- read enable
+        din   : in  STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
+        dout  : out STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
+        full  : out STD_LOGIC;
+        empty : out STD_LOGIC
+    );
+end fifo;
+
+architecture Behavioral of fifo is
+    type mem_type is array (0 to DEPTH-1) of STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
+    signal mem   : mem_type;
+    signal w_ptr : integer range 0 to DEPTH-1 := 0;
+    signal r_ptr : integer range 0 to DEPTH-1 := 0;
+    signal count : integer range 0 to DEPTH   := 0;
+
+    signal full_int  : STD_LOGIC := '0';
+    signal empty_int : STD_LOGIC := '1';
+begin
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            w_ptr <= 0;
+            r_ptr <= 0;
+            count <= 0;
+            dout  <= (others => '0');
+            full_int  <= '0';
+            empty_int <= '1';
+        elsif rising_edge(clk) then
+            -- Write
+            if wr_en = '1' and full_int = '0' then
+                mem(w_ptr) <= din;
+                w_ptr <= (w_ptr + 1) mod DEPTH;
+                count <= count + 1;
+            end if;
+
+            -- Read
+            if rd_en = '1' and empty_int = '0' then
+                dout <= mem(r_ptr);
+                r_ptr <= (r_ptr + 1) mod DEPTH;
+                count <= count - 1;
+            end if;
+
+            -- Update status flags 
+            if count = DEPTH then
+                full_int <= '1';
+            else
+                full_int <= '0';
+            end if;
+
+            if count = 0 then
+                empty_int <= '1';
+            else
+                empty_int <= '0';
+            end if;
+        end if;
+    end process;
+
+    -- Assign to outputs
+    full  <= full_int;
+    empty <= empty_int;
+end Behavioral;
+
+
+Testbench code: file name:fifo_tb
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;  -- for to_unsigned()
+
+entity fifo_tb is
+end fifo_tb;
+
+architecture behavior of fifo_tb is
+    -- FIFO parameters
+    constant DATA_WIDTH : integer := 8;
+    constant DEPTH      : integer := 8;
+
+    -- Signals
+    signal clk   : STD_LOGIC := '0';
+    signal reset : STD_LOGIC := '0';
+    signal wr_en : STD_LOGIC := '0';
+    signal rd_en : STD_LOGIC := '0';
+    signal din   : STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0) := (others => '0');
+    signal dout  : STD_LOGIC_VECTOR(DATA_WIDTH-1 downto 0);
+    signal full  : STD_LOGIC;
+    signal empty : STD_LOGIC;
+begin
+    -- Instantiate FIFO
+    uut: entity work.fifo
+        generic map (
+            DATA_WIDTH => DATA_WIDTH,
+            DEPTH      => DEPTH
+        )
+        port map (
+            clk   => clk,
+            reset => reset,
+            wr_en => wr_en,
+            rd_en => rd_en,
+            din   => din,
+            dout  => dout,
+            full  => full,
+            empty => empty
+        );
+
+    -- Clock generation (100 MHz → 10 ns period)
+    clk_process: process
+    begin
+        while now < 500 ns loop
+            clk <= '0'; wait for 5 ns;
+            clk <= '1'; wait for 5 ns;
+        end loop;
+        wait;
+    end process;
+
+    -- Stimulus
+    stim_proc: process
+    begin
+        -- Apply reset
+        reset <= '1';
+        wait for 20 ns;
+        reset <= '0';
+        wait for 20 ns;
+
+        -- Write 4 values into FIFO
+        wr_en <= '1';
+        for i in 0 to 3 loop
+            din <= std_logic_vector(to_unsigned(i, DATA_WIDTH));
+            wait for 10 ns;
+        end loop;
+        wr_en <= '0';
+
+        -- Small gap
+        wait for 30 ns;
+
+        -- Read back 4 values
+        rd_en <= '1';
+        wait for 40 ns;
+        rd_en <= '0';
+
+        -- End simulation
+        wait;
+    end process;
+end behavior;
