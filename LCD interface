@@ -1,0 +1,157 @@
+VHDL code for LCD interface: file name : lcd_interface
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lcd_interface is
+    Port (
+        clk    : in  std_logic;         -- system clock
+        rst    : in  std_logic;         -- reset
+        data_in: in  std_logic_vector(7 downto 0); -- data/command to LCD
+        rs     : out std_logic;         -- register select (0 = command, 1 = data)
+        en     : out std_logic;         -- enable signal
+        lcd_data : out std_logic_vector(3 downto 0); -- LCD data (4-bit mode)
+        ready  : out std_logic          -- LCD ready for next input
+    );
+end lcd_interface;
+
+architecture Behavioral of lcd_interface is
+    type state_type is (init, send_high, send_low, wait_en);
+    signal state : state_type := init;
+    signal en_sig : std_logic := '0';
+    signal counter : integer := 0;
+    signal temp_data : std_logic_vector(7 downto 0) := (others => '0');
+begin
+
+    process(clk, rst)
+    begin
+        if rst = '1' then
+            state <= init;
+            en_sig <= '0';
+            counter <= 0;
+            ready <= '0';
+        elsif rising_edge(clk) then
+            case state is
+                when init =>
+                    ready <= '1';
+                    en_sig <= '0';
+                    -- load data when available
+                    if data_in /= x"00" then
+                        temp_data <= data_in;
+                        ready <= '0';
+                        state <= send_high;
+                    end if;
+
+                when send_high =>
+                    lcd_data <= temp_data(7 downto 4); -- higher nibble
+                    rs <= temp_data(0); -- assume LSB = RS (0=cmd,1=data)
+                    en_sig <= '1';
+                    counter <= 0;
+                    state <= wait_en;
+
+                when send_low =>
+                    lcd_data <= temp_data(3 downto 0); -- lower nibble
+                    rs <= temp_data(0);
+                    en_sig <= '1';
+                    counter <= 0;
+                    state <= wait_en;
+
+                when wait_en =>
+                    if counter < 10 then
+                        counter <= counter + 1;
+                    else
+                        en_sig <= '0';
+                        if lcd_data = temp_data(7 downto 4) then
+                            state <= send_low; -- send lower nibble
+                        else
+                            state <= init; -- back to idle
+                            ready <= '1';
+                        end if;
+                        counter <= 0;
+                    end if;
+            end case;
+        end if;
+    end process;
+
+    en <= en_sig;
+
+end Behavioral;
+
+Testbench code : file name : tb_lcd
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity tb_lcd is
+end tb_lcd;
+
+architecture behavior of tb_lcd is
+    signal clk     : std_logic := '0';
+    signal rst     : std_logic := '1';
+    signal data_in : std_logic_vector(7 downto 0) := (others => '0');
+    signal rs      : std_logic;
+    signal en      : std_logic;
+    signal lcd_data: std_logic_vector(3 downto 0);
+    signal ready   : std_logic;
+
+    constant clk_period : time := 20 ns;
+begin
+    -- Clock process
+    clk_process : process
+    begin
+        clk <= '0';
+        wait for clk_period/2;
+        clk <= '1';
+        wait for clk_period/2;
+    end process;
+
+    -- DUT instantiation
+    uut: entity work.lcd_interface
+        port map (
+            clk => clk,
+            rst => rst,
+            data_in => data_in,
+            rs => rs,
+            en => en,
+            lcd_data => lcd_data,
+            ready => ready
+        );
+
+    -- Stimulus
+    stim_proc: process
+    begin
+        -- Reset
+        wait for 50 ns;
+        rst <= '0';
+
+        -- Send 'H'
+        wait until ready = '1';
+        data_in <= x"48"; -- ASCII 'H'
+        wait for 200 ns;
+
+        -- Send 'E'
+        wait until ready = '1';
+        data_in <= x"45"; -- ASCII 'E'
+        wait for 200 ns;
+
+        -- Send 'L'
+        wait until ready = '1';
+        data_in <= x"4C"; -- ASCII 'L'
+        wait for 200 ns;
+
+        -- Send 'L'
+        wait until ready = '1';
+        data_in <= x"4C"; -- ASCII 'L'
+        wait for 200 ns;
+
+        -- Send 'O'
+        wait until ready = '1';
+        data_in <= x"4F"; -- ASCII 'O'
+        wait for 200 ns;
+
+        wait;
+    end process;
+end behavior;
+
